@@ -1,4 +1,3 @@
-
 #include "rwip_config.h"
 #include "gattc_task.h"
 #include "gapc_task.h"
@@ -70,6 +69,10 @@ uint32_t lastTime = 0;
 uint8_t LED_Display_state = 0;
 uint32_t turnOnTime = 0;
 
+// Neue Variable für die Menüsteuerung
+uint8_t current_menu = 0;
+#define MAX_MENUS 3 // Anzahl der verfügbaren Menü-Seiten
+
 void calcTime()
 {
            uint32_t currentTime = lld_evt_time_get();
@@ -134,13 +137,60 @@ void LED_Buff_setInt(uint32_t inputNum, unsigned char *LED_Buf, int lenInt) {
 
 void refreshMenu()
 {
-        //LED_Buff_setInt(counter_time, LED_Buffer, 5);
         calcTime();
-        /*LED_Buff_setInt((realUnix % 86400) / 3600, LED_Buffer, 2);
-        LED_Buff_setInt((realUnix % 3600) / 60, &LED_Buffer[3], 2);
-        if((counter_time%2)==0)
-                LED_Buffer[2] = 0x48;*/
-        LED_Buff_setInt(lld_evt_time_get()/100, LED_Buffer, 5);
+
+        // Switch-Case für verschiedene Menüs
+        switch(current_menu)
+        {
+            case 0: // Menü 1: Systemzeit (Original)
+                LED_Buff_setInt(lld_evt_time_get()/100, LED_Buffer, 5);
+                break;
+
+            case 1: // Menü 2: Eigener counter_time
+                LED_Buff_setInt(counter_time, LED_Buffer, 5);
+                break;
+                //LED_Buff_setInt(realUnix, LED_Buffer, 5);
+
+            case 2:
+                    LED_Buffer[0] = 0x00;
+                    LED_Buffer[1] = 0x00;
+                    LED_Buffer[2] = 0x3F;
+                    LED_Buffer[3] = 0x5A;
+                    LED_Buffer[4] = 0x58;
+                break;
+            case 99:
+                    LED_Buffer[0] = 0x00;
+                    LED_Buffer[1] = 0x00;
+                    LED_Buffer[2] = 0x77;
+                    LED_Buffer[3] = 0x5A;
+                    LED_Buffer[4] = 0x3F;
+                break;
+            case 100:
+                    LED_Buffer[0] = 0x00;
+                    LED_Buffer[1] = 0x7C;
+                    LED_Buffer[2] = 0x78;
+                    LED_Buffer[3] = 0x38;
+                    LED_Buffer[4] = 0x5B;
+                break;
+            case 101:
+                    LED_Buffer[0] = 0x7A;
+                    LED_Buffer[1] = 0x52;
+                    LED_Buffer[2] = 0x5B;
+                    LED_Buffer[3] = 0x00;
+                    LED_Buffer[4] = 0x77;
+                break;
+            case 102:
+                    LED_Buffer[0] = 0x7A;
+                    LED_Buffer[1] = 0x52;
+                    LED_Buffer[2] = 0x5B;
+                    LED_Buffer[3] = 0x00;
+                    LED_Buffer[4] = 0x24;
+                break;
+
+            default:
+                current_menu = 0;
+                break;
+        }
 }
 
 static void timer_cb(void)
@@ -156,10 +206,7 @@ static void timer_cb(void)
                         {
                                 counter_ms = 0;
                                 counter_time++;
-                                arch_printf("Time %i MS: %i\r\n", realUnix, lld_evt_time_get());
-                                //if(realUnix - turnOnTime >= 10)
-                                 //       LED_GPIO_mode(0);
-
+                                arch_printf("Menu: %i, Time %i\r\n", current_menu, realUnix);
                         }
                         memset(LED_Buffer,0x00,sizeof(LED_Buffer));
                         refreshMenu();
@@ -234,11 +281,25 @@ static void app_button_press_cb(void)
     app_button_enable();
     if(GPIO_GetPinStatus(GPIO_BUTTON_PORT, GPIO_BUTTON_PIN))
             return;
-    arch_printf("Button was just pressed\r\n");
-    if(LED_Display_state){
+
+    arch_printf("Button pressed\r\n");
+
+    if(!LED_Display_state)
+    {
+        // Wenn aus: Einschalten und erstes Menü zeigen
+        current_menu = 0;
+        LED_GPIO_mode(1);
+    }
+    else
+    {
+        // Wenn an: Nächstes Menü wählen
+        current_menu++;
+        if(current_menu >= MAX_MENUS)
+        {
+            // Wenn alle Menüs durch sind: Ausschalten
             LED_GPIO_mode(0);
-    }else{
-            LED_GPIO_mode(1);
+            current_menu = 0;
+        }
     }
 }
 
@@ -264,6 +325,7 @@ void app_button_enable(void)
 #if (BLE_SUOTA_RECEIVER)
 void on_suotar_status_change(const uint8_t suotar_event)
 {
+    arch_printf("BLE on_suotar_status_change %u\r\n", suotar_event);
 #if (!SUOTAR_SPI_DISABLE)
     uint8_t dev_id;
 
@@ -276,10 +338,17 @@ void on_suotar_status_change(const uint8_t suotar_event)
     // Disable the SPI flash memory protection (unprotect all sectors)
     spi_flash_configure_memory_protection(SPI_FLASH_MEM_PROT_NONE);
 
+    if(suotar_event == SUOTAR_START)
+    {
+        current_menu = 99;
+        LED_GPIO_mode(1);
+    }
     if (suotar_event == SUOTAR_END)
     {
         // Power down the SPI flash memory
         spi_flash_power_down();
+        current_menu = 100;
+        LED_GPIO_mode(1);
     }
 #endif
 }
@@ -288,6 +357,8 @@ void user_app_on_disconnect(struct gapc_disconnect_ind const *param)
 {
     arch_printf("BLE Disconnected\r\n");
     default_app_on_disconnect(NULL);
+    current_menu = 101;
+    LED_GPIO_mode(1);
 
 #if (BLE_BATT_SERVER)
     app_batt_poll_stop();
@@ -310,6 +381,8 @@ void user_app_on_connect(uint8_t conidx, struct gapc_connection_req_ind const *p
 {
     default_app_on_connection(conidx, param);
     arch_printf("BLE Connected\r\n");
+    current_menu = 102;
+    LED_GPIO_mode(1);
 }
 
 void app_advertise_complete(const uint8_t status)
@@ -346,5 +419,3 @@ void user_catch_rest_hndl(ke_msg_id_t const msgid,
             break;
     }
 }
-
-/// @} APP
