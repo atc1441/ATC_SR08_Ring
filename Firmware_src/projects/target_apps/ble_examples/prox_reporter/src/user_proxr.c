@@ -151,35 +151,48 @@ void refreshMenu()
                 break;
                 //LED_Buff_setInt(realUnix, LED_Buffer, 5);
 
-            case 2:
-                    LED_Buffer[0] = 0x00;
+            case 2:// __ATC
+                    // A:0x01, F:0x02, B:0x04, G:0x08, E:0x10, C:0x20, D:0x40
+                    static const uint8_t anim8[] = {
+                        0x01, // Segment A
+                        0x04, // Segment B
+                        0x08, // Segment G
+                        0x10, // Segment E
+                        0x40, // Segment D
+                        0x20, // Segment C
+                        0x08, // Segment G
+                        0x02  // Segment F
+                    };
+                    uint8_t anim_index = counter_time % 8;
+
+                    LED_Buffer[0] = anim8[anim_index];
                     LED_Buffer[1] = 0x00;
                     LED_Buffer[2] = 0x3F;
                     LED_Buffer[3] = 0x5A;
                     LED_Buffer[4] = 0x58;
                 break;
-            case 99:
+            case 99:// __OTA
                     LED_Buffer[0] = 0x00;
                     LED_Buffer[1] = 0x00;
                     LED_Buffer[2] = 0x77;
                     LED_Buffer[3] = 0x5A;
                     LED_Buffer[4] = 0x3F;
                 break;
-            case 100:
+            case 100:// _DONE
                     LED_Buffer[0] = 0x00;
                     LED_Buffer[1] = 0x7C;
                     LED_Buffer[2] = 0x78;
                     LED_Buffer[3] = 0x38;
                     LED_Buffer[4] = 0x5B;
                 break;
-            case 101:
+            case 101:// BLE 0
                     LED_Buffer[0] = 0x7A;
                     LED_Buffer[1] = 0x52;
                     LED_Buffer[2] = 0x5B;
                     LED_Buffer[3] = 0x00;
                     LED_Buffer[4] = 0x77;
                 break;
-            case 102:
+            case 102:// BLE 1
                     LED_Buffer[0] = 0x7A;
                     LED_Buffer[1] = 0x52;
                     LED_Buffer[2] = 0x5B;
